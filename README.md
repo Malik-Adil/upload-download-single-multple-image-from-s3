@@ -1,30 +1,31 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo_text.svg" width="320" alt="Nest Logo" /></a>
-</p>
+# NestJS AWS S3 Image Management Service
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A NestJS service for managing images using AWS S3, supporting upload and download operations with folder organization.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Features
 
-## Description
+- Upload images to specific folders in AWS S3
+- Download entire folders as ZIP
+- Download session-specific images
+- Download single images
+- Folder organization by date and session
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Prerequisites
+
+- Node.js (v14 or later)
+- AWS Account with S3 access
+- AWS IAM credentials
+
+## Environment Setup
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+AWS_ACCESS_KEY_ID=your_access_key_id
+AWS_SECRET_ACCESS_KEY=your_secret_access_key
+AWS_REGION=your_region
+AWS_BUCKET_NAME=your_bucket_name
+```
 
 ## Installation
 
@@ -45,29 +46,133 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
-## Test
+## API Endpoints
 
-```bash
-# unit tests
-$ npm run test
+### 1. Upload Image
 
-# e2e tests
-$ npm run test:e2e
+Upload an image to a specific folder organized by date and session.
 
-# test coverage
-$ npm run test:cov
+```http
+POST /s3/upload
+Content-Type: application/json
+
+{
+  "date": "2024-03-20",
+  "session": "session1",
+  "fileName": "example.png",
+  "fileBuffer": "<base64_encoded_file_or_buffer>"
+}
 ```
 
-## Support
+### 2. Download Folder as ZIP
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Download all images from a specific folder as a ZIP file.
 
-## Stay in touch
+```http
+GET /s3/download-folder/{folderName}
+```
 
-- Author - [Kamil Myśliwiec](https://kamilmysliwiec.com)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Example:
+```
+http://localhost:3000/s3/download-folder/2024-03-20
+```
+
+### 3. Download Session Images
+
+Get a list of all images in a specific session.
+
+```http
+GET /s3/download/session/{date}/{session}
+```
+
+Example:
+```
+http://localhost:3000/s3/download/session/2024-03-20/session1
+```
+
+### 4. Download Single Image
+
+Download a specific image from a session.
+
+```http
+GET /s3/download/image/{date}/{session}/{fileName}
+```
+
+Example:
+```
+http://localhost:3000/s3/download/image/2024-03-20/session1/example.png
+```
+
+## Example Usage (Frontend)
+
+### Downloading a Folder as ZIP
+
+```javascript
+async function downloadFolderAsZip(folderName) {
+  try {
+    const response = await fetch(`/s3/download-folder/${folderName}`);
+    if (!response.ok) throw new Error('Download failed');
+    
+    const blob = await response.blob();
+    
+    // Create download link
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${folderName}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Cleanup
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error('Error downloading folder:', error);
+  }
+}
+```
+
+### Uploading an Image
+
+```javascript
+async function uploadImage(date, session, fileName, fileBuffer) {
+  try {
+    const response = await fetch('/s3/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        date,
+        session,
+        fileName,
+        fileBuffer,
+      }),
+    });
+    
+    if (!response.ok) throw new Error('Upload failed');
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error uploading image:', error);
+  }
+}
+```
+
+## Folder Structure
+
+Images in S3 are organized using the following structure:
+```
+bucket_name/
+├── date/
+│   ├── session/
+│   │   ├── image1.png
+│   │   ├── image2.png
+│   │   └── ...
+│   └── ...
+└── ...
+```
 
 ## License
 
-Nest is [MIT licensed](LICENSE).
+This project is MIT licensed.
